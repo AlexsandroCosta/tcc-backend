@@ -6,8 +6,11 @@ ENV PATH=${POETRY_HOME}/bin:${PATH}
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl \
+    libgl1 \
+    libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
 
 RUN curl -sSL https://install.python-poetry.org | python3 - && poetry --version
 

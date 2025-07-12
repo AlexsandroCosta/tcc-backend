@@ -139,6 +139,21 @@ argon2 = ["argon2-cffi (>=19.1.0)"]
 bcrypt = ["bcrypt"]
 
 [[package]]
+name = "djangorestframework"
+version = "3.16.0"
+description = "Web APIs for Django, made easy."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "djangorestframework-3.16.0-py3-none-any.whl", hash = "sha256:bea7e9f6b96a8584c5224bfb2e4348dfb3f8b5e34edbecb98da258e892089361"},
+    {file = "djangorestframework-3.16.0.tar.gz", hash = "sha256:f022ff46613584de994c0c6a4aebbace5fd700555fbe9d33b865ebf173eba6c9"},
+]
+
+[package.dependencies]
+django = ">=4.2"
+
+[[package]]
 name = "lxml"
 version = "6.0.0"
 description = "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API."
@@ -602,4 +617,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13, <4"
-content-hash = "e31fc31a98413f640f2ccdaf0551ab6940a5bcc4bc8305f1722f4adb796ab07b"
+content-hash = "4d4d9f83079f83643d12e65a88e21a7d914b4e52240dab9a6fedcc3e1bff19c6"

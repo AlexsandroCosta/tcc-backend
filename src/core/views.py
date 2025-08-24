@@ -9,6 +9,12 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 import tempfile
 import os
+from ultralytics import YOLO
+from django.conf import settings
+from .utils.mapa_braille import lista_mapa
+
+caminho_modelo = os.path.join(settings.BASE_DIR, "core", "utils", "modelo", "best.pt")
+MODELO = YOLO(caminho_modelo)
 
 class View(viewsets.ViewSet):
     parser_classes = (MultiPartParser, FormParser)
@@ -62,3 +68,61 @@ class View(viewsets.ViewSet):
 
         except Exception as e:
             return Response({'erro': str(e)}, status=400)
+        
+    @swagger_auto_schema(
+        operation_description='Traduz braille de uma imagem para texto e retorna o texto.',
+        tags=['Tradutor'],
+        manual_parameters=[
+            openapi.Parameter(name='imagens', in_=openapi.IN_FORM, type=openapi.TYPE_FILE),
+        ],
+        responses={
+            200: 'Texto extraído da imagem'
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='braille-texto')
+    def braille_texto(self, request):
+        imagens = request.FILES.getlist('imagens')
+
+        if not imagens:
+            return Response({'erro': 'Nenhuma imagem enviada'}, status=400)
+        
+        resultados_finais = []
+
+        for imagem in imagens:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{imagem.name}') as img_temp:
+                for chunk in imagem.chunks():
+                    img_temp.write(chunk)
+                
+                temp_img_path = img_temp.name
+
+            try:
+                resultados = MODELO.predict(source=temp_img_path, save=False, device='cpu')
+                
+                caixas_info = []
+
+                for resultado in resultados:
+                    caixas = resultado.boxes
+
+                    for caixa in caixas:
+                        classe_id = int(caixa.cls[0])
+                        x1, y1, x2, y2 = caixa.xyxy[0]  # coordenadas da caixa
+                        caixas_info.append({
+                            'conteudo': lista_mapa[classe_id],
+                            'x1': float(x1),
+                            'y1': float(y1),
+                            'x2': float(x2),
+                            'y2': float(y2)
+                        })
+
+                # Ordena primeiro por y (linha), depois por x (coluna)
+                caixas_info.sort(key=lambda c: (c['y1'], c['x1']))
+
+                resultados_finais.append({
+                    'imagem': imagem.name,
+                    'caixas': caixas_info
+                })
+
+            except Exception as e:
+                return Response({'erro': f'Erro ao processar a imagem {imagem.name}: {str(e)}'}, status=400)
+
+        return Response({'resultados': resultados_finais}, status=200)

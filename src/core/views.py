@@ -12,6 +12,11 @@ import os
 from ultralytics import YOLO
 from django.conf import settings
 from .utils.mapa_braille import lista_mapa
+from PIL import Image, ImageDraw, ImageFont
+from django.core.files.base import ContentFile 
+import io
+from .models import Imagem
+from .serializers import ImagemSerializer
 
 caminho_modelo = os.path.join(settings.BASE_DIR, "core", "utils", "modelo", "best.pt")
 MODELO = YOLO(caminho_modelo)
@@ -82,12 +87,11 @@ class View(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='braille-texto')
     def braille_texto(self, request):
         imagens = request.FILES.getlist('imagens')
+        lista_obj = []
 
         if not imagens:
             return Response({'erro': 'Nenhuma imagem enviada'}, status=400)
-        
-        resultados_finais = []
-
+    
         for imagem in imagens:
             with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{imagem.name}') as img_temp:
                 for chunk in imagem.chunks():
@@ -97,32 +101,48 @@ class View(viewsets.ViewSet):
 
             try:
                 resultados = MODELO.predict(source=temp_img_path, save=False, device='cpu')
-                
-                caixas_info = []
 
                 for resultado in resultados:
-                    caixas = resultado.boxes
+                    
+                    imagem_np = resultado.orig_img.copy()  # np.array
+                    imagem_pil = Image.fromarray(imagem_np)
+                    draw = ImageDraw.Draw(imagem_pil)
 
-                    for caixa in caixas:
+                    try:
+                        font = ImageFont.truetype(f'{settings.BASE_DIR}/core/utils/fontes/DejaVuSans.ttf', size=35)
+                    except:
+                        font = ImageFont.load_default()
+
+                    caixas_info = []
+
+                    for caixa in resultado.boxes:
                         classe_id = int(caixa.cls[0])
+                        conteudo = lista_mapa[classe_id]
                         x1, y1, x2, y2 = caixa.xyxy[0]  # coordenadas da caixa
+                        
+                        draw.rectangle([x1, y1, x2, y2], outline="red", width=2)
+                        draw.text((x1, y1 - 35), conteudo, fill="red", font=font)
+                        
                         caixas_info.append({
-                            'conteudo': lista_mapa[classe_id],
+                            'conteudo': conteudo,
                             'x1': float(x1),
                             'y1': float(y1),
                             'x2': float(x2),
                             'y2': float(y2)
                         })
+               
+                buffer = io.BytesIO()
+                imagem_pil.save(buffer, format='JPEG')
+                buffer.seek(0)
 
-                # Ordena primeiro por y (linha), depois por x (coluna)
-                caixas_info.sort(key=lambda c: (c['y1'], c['x1']))
+                nome_arquivo = f'processed_{imagem.name}'
+                conteudo = ContentFile(buffer.read(), name=nome_arquivo)
 
-                resultados_finais.append({
-                    'imagem': imagem.name,
-                    'caixas': caixas_info
-                })
+                lista_obj.append(Imagem.objects.create(arquivo=conteudo, boxes=caixas_info))
 
             except Exception as e:
                 return Response({'erro': f'Erro ao processar a imagem {imagem.name}: {str(e)}'}, status=400)
 
-        return Response({'resultados': resultados_finais}, status=200)
+        serializer = ImagemSerializer(lista_obj, many=True)
+        
+        return Response(serializer.data, status=200)

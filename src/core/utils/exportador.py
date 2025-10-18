@@ -35,14 +35,14 @@ class Exportador:
     
     def exportar_txt(self, texto: str, caminho_saida: str):
         try:
-            with open(caminho_saida, 'w', encoding=self.codificacao) as arquivo:
+            with open(f'{caminho_saida}.txt', 'w', encoding=self.codificacao) as arquivo:
                 arquivo.write(texto)
         except Exception as e:
             raise IOError(f'Erro ao exportar txt: {str(e)}')
         
     def exportar_pdf(self, texto: str, caminho_saida: str):
         try:
-            doc = SimpleDocTemplate(str(caminho_saida), pagesize=A4,
+            doc = SimpleDocTemplate(str(f'{caminho_saida}.pdf'), pagesize=A4,
                                     leftMargin=50, rightMargin=50,
                                     topMargin=50, bottomMargin=50)
             
@@ -78,29 +78,26 @@ class Exportador:
         try:
             docx = Document()
             docx.add_paragraph(texto)
-            docx.save(caminho_saida)
+            docx.save(f'{caminho_saida}.docx')
         except Exception as e:
             raise IOError(f'Erro ao exportar docx: {str(e)}')
         
-    def exportar(self, texto: str, nome_arquivo: str, formato: Literal['txt', 'docx', 'pdf']) -> str:
+    def exportar(self, texto: str, nome_arquivo: str, formato: Literal['braille', 'texto']) -> str:
         """
         Exporta texto para um arquivo no formato especificado.
         """
-        if not (formato in ['txt', 'docx', 'pdf']):
-            raise ValueError(f'Formato não suportado: {formato}')
         
-        caminho_saida = Path('media/exportacoes')
+        caminho_saida = Path(f'{settings.BASE_DIR}/media/exportacoes')
         caminho_saida.mkdir(parents=True, exist_ok=True)
-
-        caminho_saida = f'{caminho_saida}/{nome_arquivo}.{formato}'
-
+        caminho_saida = f'{caminho_saida}/{nome_arquivo}'
+        
         caminho_saida = self._verificar_caminho(caminho_saida)
 
-        if formato == 'txt':
-            self.exportar_txt(texto, caminho_saida)
-        elif formato == 'pdf':
-            self.exportar_pdf(texto, caminho_saida)
-        else:
-            self.exportar_docx(texto, caminho_saida)
+        self.exportar_txt(texto, caminho_saida)
+        self.exportar_pdf(texto, caminho_saida)
+        self.exportar_docx(texto, caminho_saida)
 
-        return caminho_saida
+        if formato == 'braille':
+            pass
+
+        return caminho_saida.split("src")[1]

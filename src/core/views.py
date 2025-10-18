@@ -4,6 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .utils.tradutor_texto import TradutoTexto
 from .utils.exportador import Exportador
+from .utils.mapa_braille import lista_mapa
+from .utils.processar_imagem import ProcessarImagem
 from django.http import FileResponse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -11,7 +13,6 @@ import tempfile
 import os
 from ultralytics import YOLO
 from django.conf import settings
-from .utils.mapa_braille import lista_mapa
 from PIL import Image, ImageDraw, ImageFont
 from django.core.files.base import ContentFile 
 import io
@@ -96,7 +97,8 @@ class View(viewsets.ViewSet):
             with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{imagem.name}') as img_temp:
                 for chunk in imagem.chunks():
                     img_temp.write(chunk)
-                
+
+                ProcessarImagem(img_temp.name).processar_imagem()
                 temp_img_path = img_temp.name
 
             try:
@@ -138,11 +140,45 @@ class View(viewsets.ViewSet):
                 nome_arquivo = f'processed_{imagem.name}'
                 conteudo = ContentFile(buffer.read(), name=nome_arquivo)
 
-                lista_obj.append(Imagem.objects.create(arquivo=conteudo, boxes=caixas_info))
+                # ---- ORDENAR E AGRUPAR ----
+                # 1. Ordena por y1
+                caixas_info.sort(key=lambda e: e['y1'])
+
+                # 2. Agrupa por linhas com base em uma tolerância vertical
+                linhas = []
+                tolerancia = 100  # ajuste conforme o espaçamento vertical entre as linhas
+
+                for elem in caixas_info:
+                    y = elem['y1']
+                    colocado = False
+                    for linha in linhas:
+                        # verifica se está na mesma linha (diferença pequena no y)
+                        if abs(linha[0]['y1'] - y) < tolerancia:
+                            linha.append(elem)
+                            colocado = True
+                            break
+                    if not colocado:
+                        linhas.append([elem])
+
+                # 3. Ordena cada linha da esquerda para a direita
+                for linha in linhas:
+                    linha.sort(key=lambda e: e['x1'])
+
+                # 4. Junta tudo em texto com quebras de linha
+                texto_final = ''
+                for linha in linhas:
+                    for caixa in linha:
+                        texto_final += f'{caixa["conteudo"]} '
+                    texto_final += '\n'  # quebra de linha após final de cada linha
+
+                lista_obj.append({
+                    'arquivo':Imagem.objects.create(arquivo=conteudo, boxes=caixas_info, traducao=texto_final).arquivo.name,
+                    'exportacao': self.exportador.exportar(texto_final, imagem.name, 'texto')
+                })
 
             except Exception as e:
                 return Response({'erro': f'Erro ao processar a imagem {imagem.name}: {str(e)}'}, status=400)
 
-        serializer = ImagemSerializer(lista_obj, many=True)
+        # serializer = ImagemSerializer(lista_obj, many=True)
         
-        return Response(serializer.data, status=200)
+        return Response(lista_obj, status=200)

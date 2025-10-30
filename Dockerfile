@@ -1,4 +1,4 @@
-FROM python:3.13.5-slim-bookworm AS base
+FROM python:3.10.19-slim-bookworm AS base
 
 ENV POETRY_HOME=/opt/poetry
 ENV PATH=${POETRY_HOME}/bin:${PATH}
@@ -8,6 +8,9 @@ RUN apt-get update \
     curl \
     libgl1 \
     libglib2.0-0 \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    liblouis-bin \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

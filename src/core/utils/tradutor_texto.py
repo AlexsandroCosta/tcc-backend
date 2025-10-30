@@ -6,8 +6,9 @@ import fitz
 from .mapa_braille import mapa_braille
 from docx import Document
 import re
+import subprocess
 
-class TradutoTexto:
+class TradutorTexto:
     def __init__(self, caminho_arquivo: str):
         self.texto_extraido = self._extrair_texto(caminho_arquivo)
         self.traducao_braille = self._traduzir_para_braille()
@@ -24,6 +25,11 @@ class TradutoTexto:
                 if tipo.startswith('image'):
                     tipo_arquivo = 'imagem'
                     arquivo = cv2.imread(caminho_arquivo)
+
+                elif tipo == 'text/plain':
+                    tipo_arquivo = 'txt'
+                    with open(caminho_arquivo, 'r', encoding='utf-8') as f:
+                        arquivo = f.read()
                 
                 elif tipo == 'application/pdf':
                     tipo_arquivo = 'pdf'
@@ -46,6 +52,14 @@ class TradutoTexto:
             return pytesseract.image_to_string(imagem, lang='por')
         except Exception as e:
             raise RuntimeError(f"Erro ao extrair texto da imagem: {str(e)}")
+        
+    def _extrair_texto_txt(self, conteudo: str) -> str:
+        """Extrai texto de um arquivo txt."""
+        try:
+            return conteudo.strip()
+        except Exception as e:
+            raise RuntimeError(f"Erro ao processar texto do arquivo txt: {str(e)}")
+
 
     def _extrair_texto_pdf(self, pdf: fitz.Document) -> str:
         """Extrai texto de um arquivo PDF."""
@@ -76,10 +90,12 @@ class TradutoTexto:
             return self._extrair_texto_imagem(arquivo)
         elif tipo_arquivo == 'pdf':
             return self._extrair_texto_pdf(arquivo)
+        elif tipo_arquivo == 'txt':
+            return self._extrair_texto_txt(arquivo)
         else:
             return self._extrair_texto_docx(arquivo) 
 
-    def _traduzir_para_braille(self) -> str:
+    def _traduzir_para_braille(self) -> list[str]:
         """Traduz o texto extraído para Braille."""
         traducao = []
 
@@ -93,6 +109,16 @@ class TradutoTexto:
                 for letra in linha:
                         traducao.append(mapa_braille.get(letra, ''))
 
-            return ''.join(traducao)
+            processo = subprocess.run(
+                ['lou_translate', 'pt-pt-g1.utb'],
+                input=self.texto_extraido.encode('utf-8'),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            if processo.returncode != 0:
+                raise RuntimeError(f"Erro na tradução para Braille: {processo.stderr.decode('utf-8')}")
+            
+            return [''.join(traducao), processo.stdout.decode('ascii', errors='ignore')]
         except Exception as e:
             raise RuntimeError(f"Erro durante a tradução: {str(e)}")

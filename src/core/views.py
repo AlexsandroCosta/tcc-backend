@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .utils.tradutor_texto import TradutoTexto
+from .utils.tradutor_texto import TradutorTexto
 from .utils.exportador import Exportador
 from .utils.mapa_braille import lista_mapa
 from .utils.processar_imagem import ProcessarImagem
@@ -30,8 +30,7 @@ class View(viewsets.ViewSet):
         operation_description='Traduz um arquivo para Braille e retorna no formato desejado.',
         tags=['Tradutor'],
         manual_parameters=[
-            openapi.Parameter(name='arquivo', in_=openapi.IN_FORM, type=openapi.TYPE_FILE),
-            openapi.Parameter(name='formato', in_=openapi.IN_FORM, type=openapi.TYPE_STRING, enum=['docx', 'pdf', 'txt'])
+            openapi.Parameter(name='arquivo', in_=openapi.IN_FORM, type=openapi.TYPE_FILE)
         ],
         responses={
             200: 'Download do arquivo traduzido'
@@ -40,16 +39,10 @@ class View(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='texto-braille')
     def texto_braille(self, request):
         try:
-            arquivo = request.FILES.get('arquivo')
-            formato = request.data.get('formato')
+            arquivo = request.FILES.get('arquivo') 
 
             if not arquivo:
-                return Response({'erro': 'Arquivo não enviado'}, status=400)
-            if not formato:
-                return Response({'erro': 'Formato não especificado'}, status=400)
-
-            if not formato in ['docx', 'pdf', 'txt']:
-                return Response({'erro': f'Formato não suportado: {formato}'}, status=400)
+                return Response({'erro': 'Nenhum arquivo enviado'}, status=400)
 
             # Verificar o tipo de arquivo
             tipo_arquivo = arquivo.name.split('.')[-1].lower()
@@ -64,13 +57,11 @@ class View(viewsets.ViewSet):
                 
                 temp_path = arquivo_temp.name
 
-            traduto = TradutoTexto(temp_path)
-
-            nome_original = os.path.splitext(arquivo.name)[0]
+            tradutor = TradutorTexto(temp_path)
             
-            caminho_saida = self.exportador.exportar(traduto.traducao_braille, nome_original, formato)
+            nome_original = os.path.splitext(arquivo.name)[0]
 
-            return FileResponse(open(caminho_saida, 'rb'), as_attachment=True, filename=f'{nome_original}_traduzido.{formato}')
+            return Response({'exportacao': self.exportador.exportar(tradutor.traducao_braille, nome_original, 'braille')}, status=200)
 
         except Exception as e:
             return Response({'erro': str(e)}, status=400)

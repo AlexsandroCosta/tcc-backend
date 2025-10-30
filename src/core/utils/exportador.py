@@ -82,10 +82,21 @@ class Exportador:
         except Exception as e:
             raise IOError(f'Erro ao exportar docx: {str(e)}')
         
-    def exportar(self, texto: str, nome_arquivo: str, formato: Literal['braille', 'texto']) -> str:
+    def exportar_brf(self, texto: str, caminho_saida: str):
+        try:
+            with open(f'{caminho_saida}.brf', 'w', encoding='ascii') as arquivo:
+                arquivo.write(texto)
+        except Exception as e:
+            raise IOError(f'Erro ao exportar brf: {str(e)}')
+        
+    def exportar(self, traducoes: list, nome_arquivo: str, formato: Literal['braille', 'texto']) -> str:
         """
         Exporta texto para um arquivo no formato especificado.
         """
+
+        texto = traducoes[0]
+        ascii_braille = traducoes[1]
+
         
         caminho_saida = Path(f'{settings.BASE_DIR}/media/exportacoes')
         caminho_saida.mkdir(parents=True, exist_ok=True)
@@ -98,6 +109,6 @@ class Exportador:
         self.exportar_docx(texto, caminho_saida)
 
         if formato == 'braille':
-            pass
+            self.exportar_brf(ascii_braille, caminho_saida)
 
         return caminho_saida.split("src")[1]
